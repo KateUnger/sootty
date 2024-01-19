@@ -1,4 +1,6 @@
 import sys
+import polars as pl
+import polars.selectors as cs
 from vcd.reader import *
 
 from ..exceptions import *
@@ -7,10 +9,10 @@ from .wiregroup import WireGroup
 from .wire import Wire
 from ..utils import evcd2vcd
 
-
 class WireTrace:
     def __init__(self):
         self.root = WireGroup("__root__")
+        self.df = pl.DataFrame()
 
     @classmethod
     def from_vcd(cls, filename):
@@ -77,6 +79,9 @@ class WireTrace:
         this = cls()
         this.metadata = dict()  # dictionary of vcd metadata
         wires = dict()  # map from id_code to wire object
+        wire_names = dict()
+        wire_size = dict()
+        wire_time = dict()
         stack = [this.root]  # store stack of current group for scoping
 
         with open(filename, "rb") as stream:
@@ -109,6 +114,9 @@ class WireTrace:
                             name=token.var.reference,
                             width=token.var.size,
                         )
+                        wire_names[token.var.reference] = wire
+                        # wire_size[token.var.id_code] = token.var.size
+                        # wire_time[token.var.id_code] = {0, 0}
                         wires[token.var.id_code] = wire
                         stack[-1].add_wire(wire)
                 elif token.kind is TokenKind.VERSION:
@@ -147,6 +155,10 @@ class WireTrace:
                     pass  # not sure what to do here
                 else:
                     raise SoottyError(f"Invalid vcd token when parsing: {token}")
+            
+            # this.df = pl.from_dicts([wire_names, wire_size, wire_time])
+            this.df = pl.from_dict(wire_names)
+            print(this.df)
 
             return this
 
@@ -178,6 +190,7 @@ class WireTrace:
 
     def find(self, name: str):
         """Returns the wire object with the given name, raises an error if not found."""
+        # return self.df.select(name).item()
         return self.root.find(name)
 
     def get_wire_names(self):
